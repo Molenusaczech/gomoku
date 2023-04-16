@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Document</title>
+</head>
+<body>
+    <button onclick=createGame()>Create</button>
+    
+    <table id="games">
+        
+    </table>
+
+    <div id="main">
+
+        <table id="board"></table>
+        <div id="player1">
+            <h1>Player 1</h1>
+            <h2 id="player1Name"></h2>
+            <h3 id="player1Time"></h3>
+            <button id="sit1">Sit</button>
+        </div>
+        <div id="player2">
+            <h1>Player 2</h1>
+            <h2 id="player2Name"></h2>
+            <h3 id="player2Time"></h3>
+            <button id="sit2">Sit</button>
+        </div>
+        <div id="spectators">
+            <h1>Spectators</h1>
+            <h2 id="spectatorsList"></h2>
+        </div> 
+
+        <div id="status"></div>
+
+        <button id="leave">Leave</button>
+        <button id="unsit">Unsit</button>
+        <button id="start">Start</button>
+        <button id="pickX">PickX</button>
+        <button id="pickO">PickO</button>
+
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
