@@ -7,7 +7,11 @@ if (window.location.search != "" && window.location.search != null) {
     username = username.replace("?", "");
 }
 
-const socket = new WebSocket("ws://localhost:8080");
+const socket = new WebSocket("ws://10.0.1.19:8080");
+let p1time;
+let p2time;
+let pturn;
+let turnStart;
 
 // Connection opened
 socket.addEventListener("open", (event) => {
@@ -78,11 +82,35 @@ function renderGame(data) {
     document.getElementById("start").onclick = () => start(data.id);
     document.getElementById("pickX").onclick = () => pick(data.id, "x");
     document.getElementById("pickO").onclick = () => pick(data.id, "o");
+    document.getElementById("updateSettings").onclick = () => updateSettings(data.id);
     data.player1 ??= "Empty";
     data.player2 ??= "Empty";
     document.getElementById("player1Name").innerHTML = data.player1;
     document.getElementById("player2Name").innerHTML = data.player2;
     document.getElementById("status").innerHTML = data.status;
+    document.getElementById("admin").innerHTML = "Admin: "+data.admin;
+
+    document.getElementById("player1Time").innerHTML = data.player1Time ?? data.tempo;
+    document.getElementById("player2Time").innerHTML = data.player2Time ?? data.tempo;
+
+    document.getElementById("time").value = data.tempo;
+    document.getElementById("fisher").value = data.fisher;
+
+    p1time = data.player1Time;
+    p2time = data.player2Time;
+    pturn = data.playerTurn;
+    turnStart = data.turnStartTime;
+
+    if (data.playerTurn == 1) {
+        document.getElementById("player1Name").style.color = "green";
+        document.getElementById("player2Name").style.color = "black";
+    } else if (data.playerTurn == 2) {
+        document.getElementById("player1Name").style.color = "black";
+        document.getElementById("player2Name").style.color = "green";
+    } else {
+        document.getElementById("player1Name").style.color = "black";
+        document.getElementById("player2Name").style.color = "black";
+    }
 }
 
 function createGame() {
@@ -162,4 +190,34 @@ function pick(id, symbol) {
         "symbol": symbol,
         "username": username
     } }));
+}
+
+function updateTime() {
+    /*document.getElementById("player1Time").innerHTML = data.player1Time;
+    document.getElementById("player2Time").innerHTML = data.player2Time;*/
+
+    if (pturn == 1) {
+        document.getElementById("player1Time").innerHTML = Math.floor(p1time - (Date.now() - turnStart) / 1000);
+    } else if (pturn == 2) {
+        document.getElementById("player2Time").innerHTML = Math.floor(p2time - (Date.now() - turnStart) / 1000);
+    }
+
+}
+
+setInterval(updateTime, 1000);
+
+function updateSettings(id) {
+    console.log("updating settings");
+
+    let tempo = document.getElementById("time").value;
+    let fisher = document.getElementById("fisher").value;
+    
+
+    socket.send(JSON.stringify({ type: "updateSettings", data: {
+        "id": id+"",
+        "username": username,
+        "tempo": tempo,
+        "fisher": fisher
+    } }));
+
 }

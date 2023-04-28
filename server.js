@@ -7,7 +7,7 @@ let mainSocket = null;
 let games = {};
 let users = {};
 
-const hostname = "localhost";
+const hostname = "10.0.1.19";
 const port = 8000;
 
 const server = http.createServer((req, res) => {
@@ -36,6 +36,14 @@ const server = http.createServer((req, res) => {
     };
 });
 
+function invertPlayer(player) {
+    if (player == 1) {
+        return 2;
+    } else {
+        return 1;
+    }
+}
+
 function startGame(id) {
 
     games[id]["status"] = "swap1";
@@ -56,6 +64,7 @@ function startGame(id) {
     games[id]["player2Symbol"] = null;
     games[id]["player1Time"] = games[id]["tempo"];
     games[id]["player2Time"] = games[id]["tempo"];
+    games[id]["playerTurn"] = games[id]["startingPlayer"];
     games[id]["turnStartTime"] = Date.now();
     games[id]["board"] = [
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
@@ -119,11 +128,13 @@ wss.on('connection', function connection(ws) {
                 player2: null,
                 startingPlayer: null,
                 player1Symbol: null,
+                playerTurn: 0,
                 player2Symbol: null,
                 startingPlayer: null,
+                admin: data.username,
                 tempo: 90,
                 fisher: 0,
-                spectators: [],
+                spectators: [ data.username ],
                 status: "waiting",
                 board: [
                     ["", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
@@ -145,6 +156,13 @@ wss.on('connection', function connection(ws) {
             };
             games[game.id] = game;
             ws.send(JSON.stringify(game));
+
+            ws.send(JSON.stringify(
+                {
+                    "type": "gameJoined",
+                    "data": game
+                }));
+
             wss.broadcast(JSON.stringify({
                 type: "gameCreated",
                 game: game
@@ -326,27 +344,34 @@ wss.on('connection', function connection(ws) {
             }
 
             console.log("Placing " + data.x + "" + data.y + " for player " + player);
-
+            
             if (player == games[data.id]["startingPlayer"]) {
                 console.log("valid swap");
                 if (games[data.id]["status"] == "swap1") {
                     games[data.id]["board"][data.x][data.y] = "x";
                     games[data.id]["status"] = "swap2";
+                    games[data.id]["turnStartTime"] = Date.now();
                 } else if (games[data.id]["status"] == "swap2") {
                     games[data.id]["board"][data.x][data.y] = "o";
                     games[data.id]["status"] = "swap3";
+                    games[data.id]["turnStartTime"] = Date.now();
                 }
                 else if (games[data.id]["status"] == "swap3") {
                     games[data.id]["board"][data.x][data.y] = "x";
                     games[data.id]["status"] = "swap4";
+                    games[data.id]["playerTurn"] = invertPlayer(games[data.id]["startingPlayer"]);
+                    games[data.id]["turnStartTime"] = Date.now();
                 }
             } else {
                 if (games[data.id]["status"] == "swap4") {
                     games[data.id]["board"][data.x][data.y] = "o";
                     games[data.id]["status"] = "swap5";
+                    games[data.id]["turnStartTime"] = Date.now();
                 } else if (games[data.id]["status"] == "swap5") {
                     games[data.id]["board"][data.x][data.y] = "x";
                     games[data.id]["status"] = "choose";
+                    games[data.id]["playerTurn"] = games[data.id]["startingPlayer"];
+                    games[data.id]["turnStartTime"] = Date.now();
                 }
 
             }
@@ -354,11 +379,19 @@ wss.on('connection', function connection(ws) {
             if (games[data.id]["status"] == "turn1" && player == 1) {
                 games[data.id]["board"][data.x][data.y] = games[data.id]["player1Symbol"];
                 games[data.id]["status"] = "turn2";
+                games[data.id]["playerTurn"] = 2;
+                //add time from fisher
+                games[data.id]["player1Time"] = Number(games[data.id]["fisher"]) + Number(games[data.id]["player1Time"]);
+                games[data.id]["turnStartTime"] = Date.now();
             }
 
             if (games[data.id]["status"] == "turn2" && player == 2) {
                 games[data.id]["board"][data.x][data.y] = games[data.id]["player2Symbol"];
                 games[data.id]["status"] = "turn1";
+                games[data.id]["playerTurn"] = 1;
+                //add time from fisher
+                games[data.id]["player2Time"] = Number(games[data.id]["fisher"]) + Number(games[data.id]["player2Time"]);
+                games[data.id]["turnStartTime"] = Date.now();
             }
 
             // check for win
@@ -535,6 +568,7 @@ wss.on('connection', function connection(ws) {
 
             if (win == "x") {
                 console.log("X wins");
+                games[data.id]["playerTurn"] = null;
                 if (games[data.id]["player1Symbol"] == "x") {
                     games[data.id]["status"] = "waiting";
                     games[data.id]["winner"] = 1;
@@ -544,6 +578,7 @@ wss.on('connection', function connection(ws) {
                 }
             } else if (win == "o") {
                 console.log("O wins");
+                games[data.id]["playerTurn"] = null;
                 if (games[data.id]["player1Symbol"] == "o") {
                     games[data.id]["status"] = "waiting";
                     games[data.id]["winner"] = 1;
@@ -586,16 +621,20 @@ wss.on('connection', function connection(ws) {
                     return;
                 }
 
+                games[data.id]["turnStartTime"] = Date.now();
+
                 if (data.symbol == "x") {
                     
                     if (games[data.id]["startingPlayer"] == 1) {
                         games[data.id]["status"] = "turn1";
                         games[data.id]["player1Symbol"] = "o";
+                        games[data.id]["playerTurn"] = 1;
                         games[data.id]["player2Symbol"] = "x";
                     } else {
                         games[data.id]["status"] = "turn2";
                         games[data.id]["player1Symbol"] = "x";
                         games[data.id]["player2Symbol"] = "o";
+                        games[data.id]["playerTurn"] = 2;
                     }
 
                 } else if (data.symbol == "o") {
@@ -603,10 +642,12 @@ wss.on('connection', function connection(ws) {
                         games[data.id]["status"] = "turn2";
                         games[data.id]["player1Symbol"] = "x";
                         games[data.id]["player2Symbol"] = "o";
+                        games[data.id]["playerTurn"] = 2;
                     } else {
                         games[data.id]["status"] = "turn1";
                         games[data.id]["player1Symbol"] = "o";
                         games[data.id]["player2Symbol"] = "x";
+                        games[data.id]["playerTurn"] = 1;
                     }
                 }
 
@@ -616,27 +657,68 @@ wss.on('connection', function connection(ws) {
                     return;
                 }
 
+                games[data.id]["turnStartTime"] = Date.now();
+
                 if (data.symbol == "x") {
                     if (games[data.id]["startingPlayer"] == 1) {
                         games[data.id]["status"] = "turn2";
                         games[data.id]["player1Symbol"] = "x";
                         games[data.id]["player2Symbol"] = "o";
+                        games[data.id]["playerTurn"] = 2;
                     } else {
                         games[data.id]["status"] = "turn1";
                         games[data.id]["player1Symbol"] = "o";
                         games[data.id]["player2Symbol"] = "x";
+                        games[data.id]["playerTurn"] = 1;
                     }
                 } else if (data.symbol == "o") {
                     if (games[data.id]["startingPlayer"] == 1) {
                         games[data.id]["status"] = "turn1";
                         games[data.id]["player1Symbol"] = "o";
                         games[data.id]["player2Symbol"] = "x";
+                        games[data.id]["playerTurn"] = 1;
                     } else {
                         games[data.id]["status"] = "turn2";
                         games[data.id]["player1Symbol"] = "x";
                         games[data.id]["player2Symbol"] = "o";
+                        games[data.id]["playerTurn"] = 2;
                     }
                 }
+            }
+
+            games[data.id]["spectators"].forEach(function (spectator) {
+                users[spectator].send(JSON.stringify(
+                    {
+                        "type": "gameUpdated",
+                        "data": games[data.id]
+                    }));
+            });
+
+        }
+
+        if (action == "updateSettings") {
+
+            if (games[data.id] == null) {
+                console.log("Game not found");
+                return;
+            }
+
+            if (games[data.id]["admin"] != data.username) {
+                console.log("Not an admin");
+                return;
+            }
+
+            if (games[data.id]["status"] != "waiting") {
+                console.log("Game already started");
+                return;
+            }
+
+            if (data.tempo != null && data.tempo >= 1 && data.tempo <= 36000) {
+                games[data.id]["tempo"] = data.tempo;
+            }
+
+            if (data.fisher != null && data.fisher >= 0 && data.fisher <= 600) {
+                games[data.id]["fisher"] = data.fisher;
             }
 
             games[data.id]["spectators"].forEach(function (spectator) {
@@ -663,3 +745,35 @@ wss.broadcast = function broadcast(msg) {
         client.send(msg);
     });
 };
+
+
+setInterval(() => {
+    
+
+    for (const [key, value] of Object.entries(games)) {
+        if (value["playerTurn"] == 0) {
+            continue;
+        }
+
+        games[key]["player"+value["playerTurn"]+"Time"] -= 1;
+
+        if (games[key]["player"+value["playerTurn"]+"Time"] <= 0) {
+
+            games[key]["winner"] = invertPlayer(value["playerTurn"]);
+            games[key]["playerTurn"] = null;
+            games[key]["status"] = "waiting";
+
+            games[key]["spectators"].forEach(function (spectator) {
+                users[spectator].send(JSON.stringify(
+                    {
+                        "type": "gameUpdated",
+                        "data": games[key]
+                    }));
+            });
+
+
+        }
+
+    }
+
+}, 1000);
